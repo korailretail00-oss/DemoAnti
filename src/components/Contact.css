@@ -1,0 +1,21 @@
+.contact-container {
+  display: flex;
+  justify-content: center;
+}
+
+.contact-card {
+  text-align: center;
+  padding: 4rem 2rem;
+  max-width: 600px;
+  width: 100%;
+}
+
+.contact-card .section-title {
+  margin-bottom: 1rem;
+}
+
+.contact-desc {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-bottom: 2.5rem;
+}
