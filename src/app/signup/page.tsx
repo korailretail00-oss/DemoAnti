@@ -1,6 +1,6 @@
-import { LoginForm } from "@/components/login-form";
+import { SignupForm } from "@/components/signup-form";
 
-export default function Home() {
+export default function SignupPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-100 via-white to-slate-50 relative overflow-hidden">
       {/* Decorative background shapes */}
@@ -8,7 +8,7 @@ export default function Home() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-200/50 blur-3xl z-0 pointer-events-none" />
       
       <div className="z-10 w-full flex items-center justify-center">
-        <LoginForm />
+        <SignupForm />
       </div>
     </main>
   );
