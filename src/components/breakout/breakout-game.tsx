@@ -6,22 +6,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *  벽돌깨기 (Breakout) — 다양한 아이템이 쏟아지는 캔버스 게임
  * ------------------------------------------------------------------ */
 
-const WIDTH = 800;
-const HEIGHT = 600;
+// 모바일 세로 화면 기준 해상도 (9:16에 가까운 비율)
+const WIDTH = 450;
+const HEIGHT = 800;
 
-const PADDLE_BASE_W = 110;
+const PADDLE_BASE_W = 96;
 const PADDLE_H = 16;
-const PADDLE_Y = HEIGHT - 40;
+const PADDLE_Y = HEIGHT - 70; // 하단에 손가락 공간 확보
 
 const BALL_R = 8;
-const BALL_BASE_SPEED = 360; // px/sec
+const BALL_BASE_SPEED = 330; // px/sec
+const PADDLE_MAX_W = 180;
 
 const BRICK_ROWS = 6;
-const BRICK_COLS = 11;
-const BRICK_W = 60;
-const BRICK_H = 24;
+const BRICK_COLS = 7;
 const BRICK_GAP = 6;
-const BRICK_TOP = 70;
+const BRICK_SIDE = 14;
+const BRICK_W = Math.floor(
+  (WIDTH - BRICK_SIDE * 2 - (BRICK_COLS - 1) * BRICK_GAP) / BRICK_COLS,
+);
+const BRICK_H = 22;
+const BRICK_TOP = 80;
 const BRICK_LEFT =
   (WIDTH - (BRICK_COLS * BRICK_W + (BRICK_COLS - 1) * BRICK_GAP)) / 2;
 
@@ -285,7 +290,7 @@ export default function BreakoutGame() {
 
       switch (kind) {
         case "EXPAND":
-          s.paddleW = Math.min(s.paddleW + 40, 240);
+          s.paddleW = Math.min(s.paddleW + 36, PADDLE_MAX_W);
           s.timers.EXPAND = DURATION;
           break;
         case "SHRINK":
@@ -457,7 +462,7 @@ export default function BreakoutGame() {
       const dir = (keys.current.right ? 1 : 0) - (keys.current.left ? 1 : 0);
       const moveDir = s.reversed ? -dir : dir;
       if (dir !== 0) {
-        s.paddleX += moveDir * 620 * dt;
+        s.paddleX += moveDir * 520 * dt;
         s.targetPaddleX = s.paddleX + s.paddleW / 2;
       } else {
         // 마우스/터치 목표값으로 부드럽게
@@ -902,9 +907,9 @@ export default function BreakoutGame() {
   );
 
   return (
-    <div className="flex w-full max-w-[840px] flex-col gap-3">
+    <div className="mx-auto flex h-[100dvh] w-full max-w-[480px] flex-col gap-2 px-2 py-2">
       {/* 스코어 바 */}
-      <div className="flex items-center justify-between rounded-xl bg-slate-900/80 px-4 py-2 text-sm font-mono text-slate-100 ring-1 ring-white/10">
+      <div className="flex shrink-0 items-center justify-between rounded-xl bg-slate-900/80 px-3 py-1.5 text-xs font-mono text-slate-100 ring-1 ring-white/10">
         <span className="flex items-center gap-1">
           <span className="text-amber-400">★</span> 점수{" "}
           <b className="text-amber-300">{score.toLocaleString()}</b>
@@ -922,14 +927,14 @@ export default function BreakoutGame() {
       </div>
 
       {/* 캔버스 */}
-      <div className="relative w-full overflow-hidden rounded-xl ring-1 ring-white/10 shadow-2xl">
+      <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-xl bg-slate-950 ring-1 ring-white/10 shadow-2xl">
         <canvas
           ref={canvasRef}
           width={WIDTH}
           height={HEIGHT}
           onPointerMove={onPointerMove}
           onPointerDown={onPointerDown}
-          className="block w-full touch-none select-none"
+          className="block h-full max-h-full w-auto max-w-full touch-none select-none"
           style={{ aspectRatio: `${WIDTH}/${HEIGHT}` }}
         />
 
@@ -1028,27 +1033,34 @@ export default function BreakoutGame() {
         )}
       </div>
 
-      {/* 조작법 + 아이템 범례 */}
-      <div className="rounded-xl bg-slate-900/60 px-4 py-3 text-xs text-slate-300 ring-1 ring-white/10">
-        <p className="mb-2">
-          <b className="text-slate-100">조작</b> — 마우스/터치 또는 ← → (A/D) 이동,{" "}
-          <b>Space</b> 발사·시작, <b>P</b> 일시정지
+      {/* 조작법 + 아이템 범례 (모바일: 접이식) */}
+      <div className="shrink-0 rounded-xl bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300 ring-1 ring-white/10">
+        <p className="mb-1 leading-snug">
+          <b className="text-slate-100">조작</b> — 화면을 좌우로 드래그해 패들 이동,
+          탭하면 발사·시작
         </p>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-          {POWER_KINDS.map((k) => (
-            <span key={k} className="flex items-center gap-1.5">
-              <span
-                className="inline-flex h-4 w-4 items-center justify-center rounded text-[10px]"
-                style={{ background: POWERS[k].color }}
-              >
-                {POWERS[k].icon}
+        <details>
+          <summary className="cursor-pointer list-none text-slate-400 [&::-webkit-details-marker]:hidden">
+            ▸ 아이템 15종 보기
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+            {POWER_KINDS.map((k) => (
+              <span key={k} className="flex items-center gap-1.5">
+                <span
+                  className="inline-flex h-4 w-4 items-center justify-center rounded text-[10px]"
+                  style={{ background: POWERS[k].color }}
+                >
+                  {POWERS[k].icon}
+                </span>
+                <span
+                  className={POWERS[k].good ? "text-slate-300" : "text-rose-300"}
+                >
+                  {POWERS[k].label}
+                </span>
               </span>
-              <span className={POWERS[k].good ? "text-slate-300" : "text-rose-300"}>
-                {POWERS[k].label}
-              </span>
-            </span>
-          ))}
-        </div>
+            ))}
+          </div>
+        </details>
       </div>
     </div>
   );
