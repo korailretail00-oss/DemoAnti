@@ -15,7 +15,8 @@ const PADDLE_H = 16;
 const PADDLE_Y = HEIGHT - 70; // 하단에 손가락 공간 확보
 
 const BALL_R = 8;
-const BALL_BASE_SPEED = 330; // px/sec
+const BALL_BASE_SPEED = 400; // px/sec (핀볼처럼 빠르게)
+const BALL_MIN_VY = 0.34; // 수직 속도 최소 비율 (벽만 타며 멈추는 것 방지)
 const PADDLE_MAX_W = 180;
 
 const BRICK_ROWS = 6;
@@ -171,6 +172,7 @@ export default function BreakoutGame() {
     laserCooldown: 0,
     shieldHp: 0,
     shake: 0,
+    speedMult: 1, // 슬로우/패스트 아이템용 속도 배수
   });
 
   const keys = useRef({ left: false, right: false });
@@ -186,13 +188,21 @@ export default function BreakoutGame() {
 
   const buildBricks = useCallback((lvl: number): Brick[] => {
     const bricks: Brick[] = [];
-    const rows = Math.min(BRICK_ROWS + Math.floor((lvl - 1) / 2), 9);
+    // 어렵게: 시작부터 행을 꽉 채우고 레벨마다 늘림
+    const rows = Math.min(9 + Math.floor((lvl - 1) / 2), 12);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < BRICK_COLS; c++) {
-        // 레벨/패턴에 따라 빈칸 + 내구도 부여
-        const gapPattern = (r + c + lvl) % 7 === 0;
-        if (gapPattern && lvl > 1) continue;
-        const hp = 1 + Math.floor((rows - r) / 3) + (lvl > 3 && (r + c) % 5 === 0 ? 1 : 0);
+        // 빈칸은 드물게만 (촘촘한 벽 = 더 어려움)
+        const gapPattern = (r * 3 + c * 7 + lvl) % 17 === 0;
+        if (gapPattern && lvl > 2) continue;
+        // 위쪽 행일수록, 레벨이 높을수록 단단함 (최대 6)
+        const hp = Math.min(
+          1 +
+            Math.floor((rows - r) / 2) +
+            (lvl > 2 ? 1 : 0) +
+            ((r + c) % 4 === 0 ? 1 : 0),
+          6,
+        );
         bricks.push({
           x: BRICK_LEFT + c * (BRICK_W + BRICK_GAP),
           y: BRICK_TOP + r * (BRICK_H + BRICK_GAP),
@@ -315,17 +325,13 @@ export default function BreakoutGame() {
           break;
         }
         case "SLOW":
-          for (const b of s.balls) {
-            b.vx *= 0.65;
-            b.vy *= 0.65;
-          }
+          s.speedMult = 0.62;
+          delete s.timers.FAST;
           s.timers.SLOW = DURATION;
           break;
         case "FAST":
-          for (const b of s.balls) {
-            b.vx *= 1.35;
-            b.vy *= 1.35;
-          }
+          s.speedMult = 1.5;
+          delete s.timers.SLOW;
           s.timers.FAST = DURATION;
           break;
         case "LIFE":
@@ -384,6 +390,10 @@ export default function BreakoutGame() {
         break;
       case "REVERSE":
         s.reversed = false;
+        break;
+      case "SLOW":
+      case "FAST":
+        s.speedMult = 1;
         break;
       case "SHIELD":
         s.shieldHp = 0;
@@ -494,8 +504,9 @@ export default function BreakoutGame() {
         return true;
       });
 
-      // 공 물리
-      const speedScale = 1 + (s.level - 1) * 0.04;
+      // 공 물리 — 핀볼처럼 항상 빠른 일정 속도 (레벨이 오르면 더 빨라짐)
+      const targetSpeed =
+        BALL_BASE_SPEED * (1 + Math.min(s.level - 1, 8) * 0.06) * s.speedMult;
       for (const ball of s.balls) {
         if (ball.stuck) {
           ball.x = paddleCx + ball.stuckOffset;
@@ -509,20 +520,39 @@ export default function BreakoutGame() {
           ball.vx += pull;
         }
 
-        ball.x += ball.vx * dt * speedScale;
-        ball.y += ball.vy * dt * speedScale;
+        // 속도를 목표값으로 정규화 (절대 느려지지 않음) + 최소 수직 속도 보장
+        // → 벽만 타다 멈추지 않고 항상 위로 치고 올라가며 탕탕탕 튕김
+        {
+          const sp = Math.hypot(ball.vx, ball.vy) || targetSpeed;
+          ball.vx = (ball.vx / sp) * targetSpeed;
+          ball.vy = (ball.vy / sp) * targetSpeed;
+          const minVy = targetSpeed * BALL_MIN_VY;
+          if (Math.abs(ball.vy) < minVy) {
+            ball.vy = (ball.vy < 0 ? -1 : 1) * minVy;
+            const vxMag = Math.sqrt(
+              Math.max(0, targetSpeed * targetSpeed - ball.vy * ball.vy),
+            );
+            ball.vx = (ball.vx < 0 ? -1 : 1) * vxMag;
+          }
+        }
 
-        // 벽 반사
+        ball.x += ball.vx * dt;
+        ball.y += ball.vy * dt;
+
+        // 벽 반사 (탕!)
         if (ball.x - ball.r < 0) {
           ball.x = ball.r;
           ball.vx = Math.abs(ball.vx);
+          burst(0, ball.y, "#94a3b8", 3, 0.5);
         } else if (ball.x + ball.r > WIDTH) {
           ball.x = WIDTH - ball.r;
           ball.vx = -Math.abs(ball.vx);
+          burst(WIDTH, ball.y, "#94a3b8", 3, 0.5);
         }
         if (ball.y - ball.r < 0) {
           ball.y = ball.r;
           ball.vy = Math.abs(ball.vy);
+          burst(ball.x, 0, "#94a3b8", 3, 0.5);
         }
 
         // 패들 충돌
@@ -805,7 +835,7 @@ export default function BreakoutGame() {
     const loop = (now: number) => {
       let dt = (now - last) / 1000;
       last = now;
-      if (dt > 0.05) dt = 0.05; // 프레임 드랍 보호
+      if (dt > 0.033) dt = 0.033; // 프레임 드랍 보호 (빠른 공 관통 방지)
       step(dt);
       draw(ctx);
       raf = requestAnimationFrame(loop);
@@ -822,7 +852,8 @@ export default function BreakoutGame() {
       if (b.stuck) {
         b.stuck = false;
         const speed = BALL_BASE_SPEED;
-        const ang = -Math.PI / 2 + (b.stuckOffset / (s.paddleW / 2)) * (Math.PI / 3.5);
+        // ang=0 이면 똑바로 위로. 붙은 위치에 따라 좌우로 기울여 발사 (최대 ±51도)
+        const ang = (b.stuckOffset / (s.paddleW / 2)) * (Math.PI / 3.5);
         b.vx = Math.sin(ang) * speed;
         b.vy = -Math.abs(Math.cos(ang) * speed);
       }
